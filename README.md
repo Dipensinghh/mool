@@ -1,4 +1,5 @@
 # Mool (मूल)
+![tests](https://github.com/Dipensinghh/mool/actions/workflows/test.yml/badge.svg)
 
 **Provenance-enforced payments for AI agents.** Every rupee an agent moves must trace back to a human who meant it.
 
