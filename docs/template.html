@@ -42,6 +42,8 @@ textarea{font:13px/1.55 var(--mono);resize:vertical;min-height:120px}
 input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--saffron);outline-offset:2px}
 button{font:600 16px var(--sans);border-radius:8px;cursor:pointer}
 .run{background:var(--saffron);color:#fff;border:0;padding:12px 26px;font-size:18px}
+.run[aria-disabled="true"]{opacity:.7;cursor:progress}
+.ran{grid-column:2;margin:-8px 0 0;font-size:13px;color:var(--muted);text-align:right;min-height:1.5em;font-variant-numeric:tabular-nums}
 .attacks{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
 .attacks button{background:var(--paper);color:var(--ink);border:1px solid var(--rule);padding:6px 14px;font-weight:500}
 .attacks button[aria-pressed="true"]{border-color:var(--saffron);background:var(--saffron-soft);color:var(--ink);font-weight:600}
@@ -77,7 +79,7 @@ button{font:600 16px var(--sans);border-radius:8px;cursor:pointer}
 .bench tr.total td{font-weight:700;border-top:2px solid var(--ink)}
 .note{font-size:14px;color:var(--muted);margin:8px 0 0}
 .scroll{overflow-x:auto}
-@media (max-width:1100px){.grid{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}.cmd{grid-template-columns:1fr}}
+@media (max-width:1100px){.grid{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}.cmd{grid-template-columns:1fr}.ran{grid-column:auto;text-align:left}}
 @media (prefers-reduced-motion:no-preference){.soundbox{transition:background .2s}}
 </style>
 </head>
@@ -93,6 +95,7 @@ button{font:600 16px var(--sans);border-radius:8px;cursor:pointer}
     <div><label for="command">What Aai tells her agent</label>
       <input id="command" value="Ramesh Kirana ka grocery bill pay kar do"></div>
     <button class="run" id="run">Run both agents</button>
+    <p class="ran" id="ran" aria-live="polite"></p>
   </div>
   <div class="attacks" id="attacks" role="group" aria-label="Attack"></div>
 
@@ -241,7 +244,22 @@ function loadScenario(name){
 }
 function box(id,state,who,say,sub){const b=$(id);b.dataset.state=state;b.querySelector(".sb-who").textContent=who;b.querySelector(".sb-say").textContent=say;b.querySelector(".sb-sub").textContent=sub;}
 const li=(cls,t)=>`<li class="${cls}">${t.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}</li>`;
+/* run(): visible feedback around render(); a newer run supersedes an older one */
+const REDUCED=matchMedia("(prefers-reduced-motion: reduce)");
+let runSeq=0, editTimer;
 async function run(){
+  clearTimeout(editTimer);
+  const seq=++runSeq, b=$("run");
+  b.style.minWidth=b.offsetWidth+"px"; b.setAttribute("aria-disabled","true"); b.textContent="Running…";
+  for(const id of ["sb-naive","sb-mool"]) box(id,"","","Thinking…","");
+  if(!REDUCED.matches) await new Promise(r=>setTimeout(r,400));
+  if(seq!==runSeq) return;
+  await render();
+  if(seq!==runSeq) return;
+  b.removeAttribute("aria-disabled"); b.textContent="Run both agents";
+  $("ran").textContent="Ran at "+new Date().toLocaleTimeString("en-GB",{hour12:false});
+}
+async function render(){
   const cmd=$("command").value, docs=[...$("docs").querySelectorAll("textarea")].map(t=>[t.dataset.src,t.value]);
   const intended=findContact(cmd);
   const n=naive(cmd,docs);
@@ -276,7 +294,8 @@ function renderBench(){
   $("limits").textContent=`Guaranteed: no text the agent reads can change who gets paid. For billers on Bharat Connect, it can't change the amount either. Not guaranteed: for payees without a bill fetch, like a kirana, an attacker who controls the bill can raise the amount to the right person inside the bound. In our run that overpaid ${L.overpaid_runs}/${L.runs} times (median ${inr(L.median_excess_inr)}), with ${inr(0)} reaching the attacker. New payees are always held: ${BENCH.new_payee_holds}/${BENCH.new_payee_runs}.`;
 }
 for(const name of Object.keys(SCEN)){const b=document.createElement("button");b.textContent=name;b.dataset.name=name;b.onclick=()=>loadScenario(name);$("attacks").appendChild(b);}
-$("run").onclick=run;
+$("run").onclick=()=>{ if($("run").getAttribute("aria-disabled")!=="true") run(); };
+$("docs").addEventListener("input",()=>{ clearTimeout(editTimer); editTimer=setTimeout(run,500); });
 $("command").addEventListener("change",()=>loadScenario(current));
 renderBench(); loadScenario(current);
 window.MOOL={naive,mool,SCEN,CONTACTS,setBills:b=>{BILLS=b}};
